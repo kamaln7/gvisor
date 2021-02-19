@@ -511,6 +511,9 @@ type FilesystemImpl interface {
 	// If the implementation has no filesystem-specific options, it should
 	// return the empty string.
 	MountOptions() string
+
+	// ShouldAllowVerityMmap returns whether the file system allows mmap when wrapped by verity.
+	ShouldAllowVerityMmap() bool
 }
 
 // PrependPathAtVFSRootError is returned by implementations of

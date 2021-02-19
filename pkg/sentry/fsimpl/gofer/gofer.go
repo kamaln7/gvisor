@@ -416,6 +416,7 @@ func (fstype FilesystemType) GetFilesystem(ctx context.Context, vfsObj *vfs.Virt
 		delete(mopts, moptForcePageCache)
 		fsopts.forcePageCache = true
 	}
+	fsopts.forcePageCache = true
 	if _, ok := mopts[moptLimitHostFDTranslation]; ok {
 		delete(mopts, moptLimitHostFDTranslation)
 		fsopts.limitHostFDTranslation = true

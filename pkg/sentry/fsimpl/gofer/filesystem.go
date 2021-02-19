@@ -1611,6 +1611,11 @@ func (fs *filesystem) PrependPath(ctx context.Context, vfsroot, vd vfs.VirtualDe
 	return genericPrependPath(vfsroot, vd.Mount(), vd.Dentry().Impl().(*dentry), b)
 }
 
+// ShouldAllowVerityMmap implements vfs.FilesystemImpl.ShouldAllowVerityMmap.
+func (fs *filesystem) ShouldAllowVerityMmap() bool {
+	return fs.opts.forcePageCache
+}
+
 type mopt struct {
 	key   string
 	value interface{}

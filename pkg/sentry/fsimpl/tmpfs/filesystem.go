@@ -903,3 +903,8 @@ func (fs *filesystem) PrependPath(ctx context.Context, vfsroot, vd vfs.VirtualDe
 func (fs *filesystem) MountOptions() string {
 	return fs.mopts
 }
+
+// ShouldAllowVerityMmap implements vfs.FilesystemImpl.ShouldAllowVerityMmap.
+func (fs *filesystem) ShouldAllowVerityMmap() bool {
+	return true
+}

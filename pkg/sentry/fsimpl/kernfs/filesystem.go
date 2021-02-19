@@ -992,3 +992,8 @@ func (fs *Filesystem) deferDecRefVD(ctx context.Context, vd vfs.VirtualDentry) {
 		vd.DecRef(ctx)
 	}
 }
+
+// ShouldAllowVerityMmap implements vfs.FilesystemImpl.ShouldAllowVerityMmap.
+func (fs *Filesystem) ShouldAllowVerityMmap() bool {
+	return false
+}

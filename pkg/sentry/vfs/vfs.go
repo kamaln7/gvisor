@@ -878,6 +878,14 @@ func (vfs *VirtualFilesystem) MakeSyntheticMountpoint(ctx context.Context, targe
 	return nil
 }
 
+// ShouldAllowVerityMmap returns whether the file system allows mmap when wrapped by verity.
+func (vfs *VirtualFilesystem) ShouldAllowVerityMmap(ctx context.Context, creds *auth.Credentials, pop *PathOperation) bool {
+	rp := vfs.getResolvingPath(creds, pop)
+	result := rp.mount.fs.impl.ShouldAllowVerityMmap()
+	vfs.putResolvingPath(ctx, rp)
+	return result
+}
+
 // A VirtualDentry represents a node in a VFS tree, by combining a Dentry
 // (which represents a node in a Filesystem's tree) and a Mount (which
 // represents the Filesystem's position in a VFS mount tree).

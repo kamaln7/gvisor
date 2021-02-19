@@ -285,6 +285,11 @@ func (fs *anonFilesystem) RemoveXattrAt(ctx context.Context, rp *ResolvingPath, 
 	return syserror.EPERM
 }
 
+// ShouldAllowVerityMmap implements vfs.FilesystemImpl.ShouldAllowVerityMmap.
+func (fs *anonFilesystem) ShouldAllowVerityMmap() bool {
+	return false
+}
+
 // PrependPath implements FilesystemImpl.PrependPath.
 func (fs *anonFilesystem) PrependPath(ctx context.Context, vfsroot, vd VirtualDentry, b *fspath.Builder) error {
 	b.PrependComponent(fmt.Sprintf("anon_inode:%s", vd.dentry.impl.(*anonDentry).name))

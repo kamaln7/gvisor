@@ -1107,3 +1107,8 @@ func (fs *filesystem) PrependPath(ctx context.Context, vfsroot, vd vfs.VirtualDe
 		d = d.parent
 	}
 }
+
+// ShouldAllowVerityMmap implements vfs.FilesystemImpl.ShouldAllowVerityMmap.
+func (fs *filesystem) ShouldAllowVerityMmap() bool {
+	panic("unexpected call to verity.ShouldAllowVerityMmap")
+}

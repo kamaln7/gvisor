@@ -1776,3 +1776,8 @@ func (fs *filesystem) MountOptions() string {
 	}
 	return vd.Mount().Filesystem().Impl().MountOptions()
 }
+
+// ShouldAllowVerityMmap implements vfs.FilesystemImpl.ShouldAllowVerityMmap.
+func (fs *filesystem) ShouldAllowVerityMmap() bool {
+	return false
+}
