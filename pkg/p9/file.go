@@ -15,6 +15,8 @@
 package p9
 
 import (
+	"errors"
+
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/fd"
 )
@@ -71,6 +73,8 @@ type File interface {
 	//
 	// On the server, WalkGetAttr has a read concurrency guarantee.
 	WalkGetAttr([]string) ([]QID, File, AttrMask, Attr, error)
+
+	MultiGetAttr(names []string) ([]FullStat, error)
 
 	// StatFS returns information about the file system associated with
 	// this file.
@@ -306,6 +310,51 @@ func (DisallowClientCalls) SetAttrClose(SetAttrMask, SetAttr) error {
 type DisallowServerCalls struct{}
 
 // Renamed implements File.Renamed.
-func (*clientFile) Renamed(File, string) {
+func (*DisallowServerCalls) Renamed(File, string) {
 	panic("Renamed should not be called on the client")
+}
+
+// DefaultMultiGetAttr implements File.MultiGetAttr() on top of File.
+func DefaultMultiGetAttr(start File, names []string) ([]FullStat, error) {
+	stats := make([]FullStat, 0, len(names))
+	parent := start
+	mask := AttrMaskAll()
+	for i, name := range names {
+		if len(name) == 0 && i == 0 {
+			qid, valid, attr, err := parent.GetAttr(mask)
+			if err != nil {
+				return nil, err
+			}
+			stats = append(stats, FullStat{
+				QID:   qid,
+				Valid: valid,
+				Attr:  attr,
+			})
+			continue
+		}
+		qids, child, valid, attr, err := parent.WalkGetAttr([]string{name})
+		if parent != start {
+			_ = parent.Close()
+		}
+		if err != nil {
+			_ = child.Close()
+			if errors.Is(err, unix.ENOENT) {
+				return stats, nil
+			}
+			return nil, err
+		}
+		stats = append(stats, FullStat{
+			QID:   qids[0],
+			Valid: valid,
+			Attr:  attr,
+		})
+		if attr.Mode.FileType() != ModeDirectory {
+			// Doesn't need to continue if entry is not a dir. Including symlinks
+			// that cannot be followed.
+			_ = child.Close()
+			break
+		}
+		parent = child
+	}
+	return stats, nil
 }
