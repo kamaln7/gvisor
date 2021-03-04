@@ -1923,6 +1923,7 @@ cc_binary(
     deps = [
         "//test/util:file_descriptor",
         gtest,
+        "//test/util:cleanup",
         "//test/util:temp_path",
         "//test/util:test_main",
         "//test/util:test_util",
