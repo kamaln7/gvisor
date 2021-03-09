@@ -203,6 +203,10 @@ func (g *Gofer) Execute(_ context.Context, f *flag.FlagSet, args ...interface{})
 		filter.InstallUDSFilters()
 	}
 
+	if conf.Verity {
+		filter.InstallXattrFilters()
+	}
+
 	if err := filter.Install(); err != nil {
 		Fatalf("installing seccomp filters: %v", err)
 	}
