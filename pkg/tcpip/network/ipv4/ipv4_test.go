@@ -2612,31 +2612,34 @@ func TestWriteStats(t *testing.T) {
 	const nPackets = 3
 
 	tests := []struct {
-		name          string
-		setup         func(*testing.T, *stack.Stack)
-		allowPackets  int
-		expectSent    int
-		expectDropped int
-		expectWritten int
+		name                     string
+		setup                    func(*testing.T, *stack.Stack)
+		allowPackets             int
+		expectSent               int
+		expectOutputDropped      int
+		expectPostroutingDropped int
+		expectWritten            int
 	}{
 		{
 			name: "Accept all",
 			// No setup needed, tables accept everything by default.
-			setup:         func(*testing.T, *stack.Stack) {},
-			allowPackets:  math.MaxInt32,
-			expectSent:    nPackets,
-			expectDropped: 0,
-			expectWritten: nPackets,
+			setup:                    func(*testing.T, *stack.Stack) {},
+			allowPackets:             math.MaxInt32,
+			expectSent:               nPackets,
+			expectOutputDropped:      0,
+			expectPostroutingDropped: 0,
+			expectWritten:            nPackets,
 		}, {
 			name: "Accept all with error",
 			// No setup needed, tables accept everything by default.
-			setup:         func(*testing.T, *stack.Stack) {},
-			allowPackets:  nPackets - 1,
-			expectSent:    nPackets - 1,
-			expectDropped: 0,
-			expectWritten: nPackets - 1,
+			setup:                    func(*testing.T, *stack.Stack) {},
+			allowPackets:             nPackets - 1,
+			expectSent:               nPackets - 1,
+			expectOutputDropped:      0,
+			expectPostroutingDropped: 0,
+			expectWritten:            nPackets - 1,
 		}, {
-			name: "Drop all",
+			name: "Drop all with Output chain",
 			setup: func(t *testing.T, stk *stack.Stack) {
 				// Install Output DROP rule.
 				t.Helper()
@@ -2648,12 +2651,30 @@ func TestWriteStats(t *testing.T) {
 					t.Fatalf("failed to replace table: %s", err)
 				}
 			},
-			allowPackets:  math.MaxInt32,
-			expectSent:    0,
-			expectDropped: nPackets,
-			expectWritten: nPackets,
+			allowPackets:             math.MaxInt32,
+			expectSent:               0,
+			expectOutputDropped:      nPackets,
+			expectPostroutingDropped: 0,
+			expectWritten:            nPackets,
 		}, {
-			name: "Drop some",
+			name: "Drop all with Postrouting chain",
+			setup: func(t *testing.T, stk *stack.Stack) {
+				t.Helper()
+				ipt := stk.IPTables()
+				filter := ipt.GetTable(stack.NATID, false /* ipv6 */)
+				ruleIdx := filter.BuiltinChains[stack.Postrouting]
+				filter.Rules[ruleIdx].Target = &stack.DropTarget{}
+				if err := ipt.ReplaceTable(stack.NATID, filter, false /* ipv6 */); err != nil {
+					t.Fatalf("failed to replace table: %s", err)
+				}
+			},
+			allowPackets:             math.MaxInt32,
+			expectSent:               0,
+			expectOutputDropped:      0,
+			expectPostroutingDropped: nPackets,
+			expectWritten:            nPackets,
+		}, {
+			name: "Drop some with Output chain",
 			setup: func(t *testing.T, stk *stack.Stack) {
 				// Install Output DROP rule that matches only 1
 				// of the 3 packets.
@@ -2670,10 +2691,34 @@ func TestWriteStats(t *testing.T) {
 					t.Fatalf("failed to replace table: %s", err)
 				}
 			},
-			allowPackets:  math.MaxInt32,
-			expectSent:    nPackets - 1,
-			expectDropped: 1,
-			expectWritten: nPackets,
+			allowPackets:             math.MaxInt32,
+			expectSent:               nPackets - 1,
+			expectOutputDropped:      1,
+			expectPostroutingDropped: 0,
+			expectWritten:            nPackets,
+		}, {
+			name: "Drop some with Postrouting chain",
+			setup: func(t *testing.T, stk *stack.Stack) {
+				// Install Output DROP rule that matches only 1
+				// of the 3 packets.
+				t.Helper()
+				ipt := stk.IPTables()
+				filter := ipt.GetTable(stack.NATID, false /* ipv6 */)
+				// We'll match and DROP the last packet.
+				ruleIdx := filter.BuiltinChains[stack.Postrouting]
+				filter.Rules[ruleIdx].Target = &stack.DropTarget{}
+				filter.Rules[ruleIdx].Matchers = []stack.Matcher{&limitedMatcher{nPackets - 1}}
+				// Make sure the next rule is ACCEPT.
+				filter.Rules[ruleIdx+1].Target = &stack.AcceptTarget{}
+				if err := ipt.ReplaceTable(stack.NATID, filter, false /* ipv6 */); err != nil {
+					t.Fatalf("failed to replace table: %s", err)
+				}
+			},
+			allowPackets:             math.MaxInt32,
+			expectSent:               nPackets - 1,
+			expectOutputDropped:      0,
+			expectPostroutingDropped: 1,
+			expectWritten:            nPackets,
 		},
 	}
 
@@ -2726,8 +2771,11 @@ func TestWriteStats(t *testing.T) {
 					if got := int(rt.Stats().IP.PacketsSent.Value()); got != test.expectSent {
 						t.Errorf("sent %d packets, but expected to send %d", got, test.expectSent)
 					}
-					if got := int(rt.Stats().IP.IPTablesOutputDropped.Value()); got != test.expectDropped {
-						t.Errorf("dropped %d packets, but expected to drop %d", got, test.expectDropped)
+					if got := int(rt.Stats().IP.IPTablesOutputDropped.Value()); got != test.expectOutputDropped {
+						t.Errorf("Output chain dropped %d packets, but expected to drop %d", got, test.expectOutputDropped)
+					}
+					if got := int(rt.Stats().IP.IPTablesPostroutingDropped.Value()); got != test.expectPostroutingDropped {
+						t.Errorf("Postrouting chain dropped %d packets, but expected to drop %d", got, test.expectPostroutingDropped)
 					}
 					if nWritten != test.expectWritten {
 						t.Errorf("wrote %d packets, but expected WritePackets to return %d", nWritten, test.expectWritten)

@@ -68,6 +68,10 @@ type MultiCounterIPStats struct {
 	// Output chain.
 	IPTablesOutputDropped tcpip.MultiCounterStat
 
+	// IPTablesPostroutingDropped is the total number of IP packets dropped in the
+	// Postrouting chain.
+	IPTablesPostroutingDropped tcpip.MultiCounterStat
+
 	// TODO(https://gvisor.dev/issues/5529): Move the IPv4-only option stats out
 	// of IPStats.
 
@@ -98,6 +102,7 @@ func (m *MultiCounterIPStats) Init(a, b *tcpip.IPStats) {
 	m.IPTablesPreroutingDropped.Init(a.IPTablesPreroutingDropped, b.IPTablesPreroutingDropped)
 	m.IPTablesInputDropped.Init(a.IPTablesInputDropped, b.IPTablesInputDropped)
 	m.IPTablesOutputDropped.Init(a.IPTablesOutputDropped, b.IPTablesOutputDropped)
+	m.IPTablesPostroutingDropped.Init(a.IPTablesPostroutingDropped, b.IPTablesPostroutingDropped)
 	m.OptionTimestampReceived.Init(a.OptionTimestampReceived, b.OptionTimestampReceived)
 	m.OptionRecordRouteReceived.Init(a.OptionRecordRouteReceived, b.OptionRecordRouteReceived)
 	m.OptionRouterAlertReceived.Init(a.OptionRouterAlertReceived, b.OptionRouterAlertReceived)

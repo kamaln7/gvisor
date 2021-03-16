@@ -383,6 +383,13 @@ func (e *endpoint) writePacket(r *stack.Route, gso *stack.GSO, pkt *stack.Packet
 		return nil
 	}
 
+	outNicName := e.protocol.stack.FindNICNameFromID(e.nic.ID())
+	if ok := e.protocol.stack.IPTables().Check(stack.Postrouting, pkt, gso, r, "" /* preroutingAddr */, "" /* inNicName */, outNicName); !ok {
+		// iptables is telling us to drop the packet.
+		e.stats.ip.IPTablesPostroutingDropped.Increment()
+		return nil
+	}
+
 	stats := e.stats.ip
 
 	networkMTU, err := calculateNetworkMTU(e.nic.MTU(), uint32(pkt.NetworkHeader().View().Size()))
@@ -454,7 +461,7 @@ func (e *endpoint) WritePackets(r *stack.Route, gso *stack.GSO, pkts stack.Packe
 	outNicName := e.protocol.stack.FindNICNameFromID(e.nic.ID())
 	// iptables filtering. All packets that reach here are locally
 	// generated.
-	dropped, natPkts := e.protocol.stack.IPTables().CheckPackets(stack.Output, pkts, gso, r, "", outNicName)
+	dropped, natPkts := e.protocol.stack.IPTables().CheckPackets(stack.Output, pkts, gso, r, "" /* inNicName */, outNicName)
 	stats.IPTablesOutputDropped.IncrementBy(uint64(len(dropped)))
 	for pkt := range dropped {
 		pkts.Remove(pkt)
@@ -478,6 +485,12 @@ func (e *endpoint) WritePackets(r *stack.Route, gso *stack.GSO, pkts stack.Packe
 
 	}
 
+	dropped2, _ := e.protocol.stack.IPTables().CheckPackets(stack.Postrouting, pkts, gso, r, "" /* inNicName */, outNicName)
+	stats.IPTablesPostroutingDropped.IncrementBy(uint64(len(dropped2)))
+	for pkt := range dropped2 {
+		pkts.Remove(pkt)
+	}
+
 	// The rest of the packets can be delivered to the NIC as a batch.
 	pktsLen := pkts.Len()
 	written, err := e.nic.WritePackets(r, gso, pkts, ProtocolNumber)
@@ -485,7 +498,7 @@ func (e *endpoint) WritePackets(r *stack.Route, gso *stack.GSO, pkts stack.Packe
 	stats.OutgoingPacketErrors.IncrementBy(uint64(pktsLen - written))
 
 	// Dropped packets aren't errors, so include them in the return value.
-	return locallyDelivered + written + len(dropped), err
+	return locallyDelivered + written + len(dropped) + len(dropped2), err
 }
 
 // WriteHeaderIncludedPacket implements stack.NetworkEndpoint.

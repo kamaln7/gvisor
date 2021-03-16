@@ -69,29 +69,39 @@ func tableRules(ipv6 bool, table string, argsList [][]string) error {
 	return nil
 }
 
-// listenUDP listens on a UDP port and returns the value of net.Conn.Read() for
-// the first read on that port.
 func listenUDP(ctx context.Context, port int, ipv6 bool) error {
+	_, err := listenUDPFrom(ctx, port, ipv6)
+	return err
+}
+
+// listenUDPFrom listens on a UDP port and returns the value of net.Conn.Read()
+// for the first read on that port.
+func listenUDPFrom(ctx context.Context, port int, ipv6 bool) (*net.UDPAddr, error) {
 	localAddr := net.UDPAddr{
 		Port: port,
 	}
 	conn, err := net.ListenUDP(udpNetwork(ipv6), &localAddr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer conn.Close()
 
-	ch := make(chan error)
+	type result struct {
+		remoteAddr *net.UDPAddr
+		err        error
+	}
+
+	ch := make(chan result)
 	go func() {
-		_, err = conn.Read([]byte{0})
-		ch <- err
+		_, remoteAddr, err := conn.ReadFromUDP([]byte{0})
+		ch <- result{remoteAddr, err}
 	}()
 
 	select {
-	case err := <-ch:
-		return err
+	case res := <-ch:
+		return res.remoteAddr, res.err
 	case <-ctx.Done():
-		return ctx.Err()
+		return nil, ctx.Err()
 	}
 }
 
@@ -127,6 +137,11 @@ func sendUDPLoop(ctx context.Context, ip net.IP, port int, ipv6 bool) error {
 
 // listenTCP listens for connections on a TCP port.
 func listenTCP(ctx context.Context, port int, ipv6 bool) error {
+	_, err := listenTCPFrom(ctx, port, ipv6)
+	return err
+}
+
+func listenTCPFrom(ctx context.Context, port int, ipv6 bool) (net.Addr, error) {
 	localAddr := net.TCPAddr{
 		Port: port,
 	}
@@ -134,23 +149,32 @@ func listenTCP(ctx context.Context, port int, ipv6 bool) error {
 	// Starts listening on port.
 	lConn, err := net.ListenTCP(tcpNetwork(ipv6), &localAddr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer lConn.Close()
 
+	type result struct {
+		remoteAddr net.Addr
+		err        error
+	}
+
 	// Accept connections on port.
-	ch := make(chan error)
+	ch := make(chan result)
 	go func() {
 		conn, err := lConn.AcceptTCP()
-		ch <- err
+		var remoteAddr net.Addr
+		if err == nil {
+			remoteAddr = conn.RemoteAddr()
+		}
+		ch <- result{remoteAddr, err}
 		conn.Close()
 	}()
 
 	select {
-	case err := <-ch:
-		return err
+	case res := <-ch:
+		return res.remoteAddr, res.err
 	case <-ctx.Done():
-		return fmt.Errorf("timed out waiting for a connection at %#v: %w", localAddr, ctx.Err())
+		return nil, fmt.Errorf("timed out waiting for a connection at %#v: %w", localAddr, ctx.Err())
 	}
 }
 
