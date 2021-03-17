@@ -31,7 +31,7 @@ import (
 	"gvisor.dev/gvisor/pkg/usermem"
 )
 
-var dummyFPState = (*byte)(arch.NewFloatingPointData())
+var dummyFPState = arch.NewFloatingPointData()
 
 type testHarness interface {
 	Errorf(format string, args ...interface{})
